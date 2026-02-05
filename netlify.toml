@@ -1,6 +1,7 @@
 [build]
-  command = "npm run build"
+  command = "cd client && npm install && npm run build"
   publish = "client/.next"
+  functions = "server/src"
 
 [functions]
   external_node_modules = ["express", "serverless-http", "mongoose", "cors", "helmet", "morgan", "dotenv", "multer", "@supabase/supabase-js"]
