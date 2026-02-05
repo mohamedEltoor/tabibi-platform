@@ -1,26 +1,19 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
+const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 
-// Configure Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Configure Supabase
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 let storage;
 
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-    // Production: Use Cloudinary
-    storage = new CloudinaryStorage({
-        cloudinary: cloudinary,
-        params: {
-            folder: 'tabibi/emr',
-            allowed_formats: ['jpg', 'png', 'jpeg', 'pdf', 'webp'],
-        },
-    });
+// For Supabase, we'll use memoryStorage for cloud uploads 
+// and then upload in the controller to get the public URL.
+if (process.env.SUPABASE_URL) {
+    storage = multer.memoryStorage();
 } else {
     // Development: Use Local Storage
     const fs = require('fs');
@@ -58,4 +51,4 @@ const upload = multer({
     fileFilter: fileFilter
 });
 
-module.exports = { upload, cloudinary };
+module.exports = { upload, supabase };

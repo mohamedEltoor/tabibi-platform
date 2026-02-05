@@ -3,6 +3,7 @@ const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
+const { supabase } = require('../middleware/uploadMiddleware');
 
 // Helper to resolve patient from ID (which might be a guest ID)
 const resolvePatient = async (idOrGuestId, doctorId) => {
@@ -287,14 +288,29 @@ exports.uploadAttachments = async (req, res) => {
             return res.status(400).json({ msg: 'No files uploaded' });
         }
 
-        const fileUrls = req.files.map(file => {
-            // Cloudinary returns full URL in path
-            if (file.path && file.path.startsWith('http')) {
-                return file.path;
+        const fileUrls = await Promise.all(req.files.map(async (file) => {
+            // Memory Storage (Production/Supabase)
+            if (file.buffer && process.env.SUPABASE_URL) {
+                const fileName = `emr/${Date.now()}-${file.originalname}`;
+                const { data, error } = await supabase.storage
+                    .from('tabibi')
+                    .upload(fileName, file.buffer, {
+                        contentType: file.mimetype,
+                        upsert: true
+                    });
+
+                if (error) throw error;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('tabibi')
+                    .getPublicUrl(fileName);
+
+                return publicUrl;
             }
-            // Local storage returns filename
+
+            // Disk Storage (Development/Local)
             return `/api/uploads/emr/${file.filename}`;
-        });
+        }));
         res.json({ urls: fileUrls });
     } catch (err) {
         console.error(err);

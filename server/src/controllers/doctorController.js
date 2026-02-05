@@ -386,16 +386,33 @@ exports.updateMyProfile = async (req, res) => {
         if (gender) doctorFields.gender = gender;
         if (bio !== undefined) doctorFields.bio = bio;
 
-        // Handle Base64 Profile Image Upload to Cloudinary
-        if (profileImage && profileImage.startsWith('data:image') && process.env.CLOUDINARY_CLOUD_NAME) {
+        // Handle Base64 Profile Image Upload to Supabase
+        if (profileImage && profileImage.startsWith('data:image') && process.env.SUPABASE_URL) {
             try {
-                const uploadRes = await cloudinary.uploader.upload(profileImage, {
-                    folder: 'tabibi/profiles',
-                    resource_type: 'auto'
-                });
-                doctorFields.profileImage = uploadRes.secure_url;
+                // Convert Base64 to Buffer
+                const base64Data = profileImage.split(';base64,').pop();
+                const buffer = Buffer.from(base64Data, 'base64');
+                const contentType = profileImage.split(';')[0].split(':')[1];
+
+                const fileName = `profiles/${req.user.id}-${Date.now()}.png`;
+
+                const { data, error } = await supabase.storage
+                    .from('tabibi')
+                    .upload(fileName, buffer, {
+                        contentType: contentType,
+                        upsert: true
+                    });
+
+                if (error) throw error;
+
+                // Get Public URL
+                const { data: { publicUrl } } = supabase.storage
+                    .from('tabibi')
+                    .getPublicUrl(fileName);
+
+                doctorFields.profileImage = publicUrl;
             } catch (err) {
-                console.error('[Cloudinary] Profile Upload Error:', err);
+                console.error('[Supabase] Profile Upload Error:', err);
                 // Fallback: keep base64 or previous image if upload fails
             }
         } else if (profileImage !== undefined) {
