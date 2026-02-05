@@ -49,8 +49,16 @@ app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/patients', require('./routes/patientRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
+const serverless = require('serverless-http');
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Only listen if not running in serverless environment (Netlify)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
+module.exports.handler = serverless(app);
