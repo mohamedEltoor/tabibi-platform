@@ -274,9 +274,22 @@ exports.submitRenewalRequest = async (req, res) => {
             return res.status(404).json({ msg: 'Doctor profile not found' });
         }
 
+        let imageUrl = receiptImage;
+        if (receiptImage && receiptImage.startsWith('data:image')) {
+            try {
+                const result = await cloudinary.uploader.upload(receiptImage, {
+                    folder: 'tabibi/receipts',
+                    public_id: `renewal-${req.user.id}-${Date.now()}`
+                });
+                imageUrl = result.secure_url;
+            } catch (err) {
+                console.error('[Cloudinary] Renewal Receipt Upload Error:', err);
+            }
+        }
+
         doctor.renewalRequest = {
             phone,
-            receiptImage,
+            receiptImage: imageUrl,
             status: 'pending',
             requestedAt: new Date()
         };
@@ -302,9 +315,22 @@ exports.submitCommissionPayment = async (req, res) => {
             return res.status(404).json({ msg: 'Doctor profile not found' });
         }
 
+        let imageUrl = receiptImage;
+        if (receiptImage && receiptImage.startsWith('data:image')) {
+            try {
+                const result = await cloudinary.uploader.upload(receiptImage, {
+                    folder: 'tabibi/commissions',
+                    public_id: `commission-${req.user.id}-${Date.now()}`
+                });
+                imageUrl = result.secure_url;
+            } catch (err) {
+                console.error('[Cloudinary] Commission Receipt Upload Error:', err);
+            }
+        }
+
         doctor.commissionPaymentRequest = {
             phone,
-            receiptImage,
+            receiptImage: imageUrl,
             amount,
             status: 'pending',
             requestedAt: new Date()
@@ -387,33 +413,19 @@ exports.updateMyProfile = async (req, res) => {
         if (bio !== undefined) doctorFields.bio = bio;
 
         // Handle Base64 Profile Image Upload to Supabase
-        if (profileImage && profileImage.startsWith('data:image') && process.env.SUPABASE_URL) {
+        if (profileImage && profileImage.startsWith('data:image')) {
             try {
-                // Convert Base64 to Buffer
-                const base64Data = profileImage.split(';base64,').pop();
-                const buffer = Buffer.from(base64Data, 'base64');
-                const contentType = profileImage.split(';')[0].split(':')[1];
+                // Upload Base64 to Cloudinary
+                const result = await cloudinary.uploader.upload(profileImage, {
+                    folder: 'tabibi/profiles',
+                    public_id: `${req.user.id}-${Date.now()}`,
+                    resource_type: 'image'
+                });
 
-                const fileName = `profiles/${req.user.id}-${Date.now()}.png`;
-
-                const { data, error } = await supabase.storage
-                    .from('tabibi')
-                    .upload(fileName, buffer, {
-                        contentType: contentType,
-                        upsert: true
-                    });
-
-                if (error) throw error;
-
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('tabibi')
-                    .getPublicUrl(fileName);
-
-                doctorFields.profileImage = publicUrl;
+                doctorFields.profileImage = result.secure_url;
             } catch (err) {
-                console.error('[Supabase] Profile Upload Error:', err);
-                // Fallback: keep base64 or previous image if upload fails
+                console.error('[Cloudinary] Profile Upload Error:', err);
+                // Fallback: keep previous image if upload fails
             }
         } else if (profileImage !== undefined) {
             doctorFields.profileImage = profileImage;

@@ -14,15 +14,21 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cors());
+// CORS - only allow requests from our frontend
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+}));
 app.use(helmet({
     crossOriginResourcePolicy: false,
     contentSecurityPolicy: false,
 }));
-app.use(morgan('dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Static Folders
-app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+// app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Session configuration (required for passport)
 app.use(session({
@@ -30,7 +36,9 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
@@ -49,16 +57,10 @@ app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/patients', require('./routes/patientRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
-const serverless = require('serverless-http');
-
 const PORT = process.env.PORT || 5000;
 
-// Only listen if not running in serverless environment (Netlify)
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
-}
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+});
 
 module.exports = app;
-module.exports.handler = serverless(app);

@@ -11,6 +11,20 @@ import api from "@/lib/axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getGovernorates, getCities } from "@/lib/egyptData";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { useCallback } from "react";
+
+interface RegisterPayload {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    phone?: string;
+    governorate?: string;
+    city?: string;
+    address?: string;
+    specialty?: string;
+    subspecialty?: string;
+}
 
 export default function SignupPage() {
     const searchParams = useSearchParams();
@@ -41,13 +55,13 @@ export default function SignupPage() {
     const governorates = getGovernorates();
     const cities = governorate ? getCities(governorate) : [];
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
 
         try {
-            const payload: any = { name, email, password, role };
+            const payload: RegisterPayload = { name, email, password, role };
 
             // Add doctor-specific fields if role is doctor
             if (role === "doctor") {
@@ -64,13 +78,10 @@ export default function SignupPage() {
                 if (subspecialty) payload.subspecialty = subspecialty;
             }
 
-            const res = await api.post("/auth/register", payload);
+            const res = await api.post<{ message: string }>("/auth/register", payload);
 
             // Store role for navbar preview
             localStorage.setItem("role", role);
-
-            // Don't set token yet, wait for verification
-            // localStorage.setItem("token", res.data.token);
 
             setSuccessMessage(res.data.message || "تم التسجيل بنجاح! يرجى التحقق من بريدك الإلكتروني");
 
@@ -83,7 +94,7 @@ export default function SignupPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [name, email, password, role, phone, governorate, city, address, specialty, subspecialty, router]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">

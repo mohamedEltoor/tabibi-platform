@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -22,7 +22,7 @@ interface MapPickerProps {
     placeholder?: string;
 }
 
-function LocationMarker({ position, setPosition, onChange }: any) {
+function LocationMarker({ position, setPosition, onChange }: { position: [number, number], setPosition: (p: [number, number]) => void, onChange: (c: { lat: number, lng: number }) => void }) {
     const map = useMapEvents({
         click(e) {
             const { lat, lng } = e.latlng;
@@ -41,7 +41,7 @@ function ChangeView({ center }: { center: [number, number] }) {
     const map = useMap();
     useEffect(() => {
         map.setView(center);
-    }, [center]);
+    }, [center, map]);
     return null;
 }
 
@@ -52,7 +52,7 @@ export function MapPicker({ value, onChange }: MapPickerProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [searching, setSearching] = useState(false);
 
-    const handleSearch = async (e?: React.FormEvent) => {
+    const handleSearch = useCallback(async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!searchQuery) return;
 
@@ -71,9 +71,9 @@ export function MapPicker({ value, onChange }: MapPickerProps) {
         } finally {
             setSearching(false);
         }
-    };
+    }, [searchQuery, onChange]);
 
-    const handleCurrentLocation = () => {
+    const handleCurrentLocation = useCallback(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
@@ -81,7 +81,7 @@ export function MapPicker({ value, onChange }: MapPickerProps) {
                 onChange({ lat: newPos[0], lng: newPos[1] });
             });
         }
-    };
+    }, [onChange]);
 
     return (
         <div className="space-y-4">

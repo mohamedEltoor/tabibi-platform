@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,38 @@ import { ScheduleSettings } from "@/components/ScheduleSettings";
 import dynamic from "next/dynamic";
 import { compressImage } from "@/lib/utils";
 import { popularSpecialties, otherSpecialties } from "@/lib/medicalData";
+import NextImage from "next/image";
+
+interface DailySchedule {
+    day: string;
+    startTime: string;
+    endTime: string;
+    enabled: boolean;
+}
+
+interface Schedule {
+    dailySchedules: DailySchedule[];
+    slotDuration: number;
+    waitingTime: number;
+}
+
+interface ProfileInitialValues {
+    name: string;
+    phone: string;
+    governorate: string;
+    city: string;
+    address: string;
+    specialty: string;
+    subspecialty: string;
+    title: string;
+    gender: string;
+    bio: string;
+    yearsOfExperience: string;
+    profileImage: string;
+    location?: { lat: number; lng: number };
+    consultationFee: string;
+    schedule: Schedule;
+}
 
 const MapPicker = dynamic(() => import("@/components/MapPicker").then(mod => mod.MapPicker), {
     ssr: false,
@@ -46,23 +78,19 @@ export default function DoctorProfilePage() {
     const [profileImage, setProfileImage] = useState("");
     const [consultationFee, setConsultationFee] = useState("");
     const [location, setLocation] = useState<{ lat: number; lng: number } | undefined>(undefined);
-    const [schedule, setSchedule] = useState({
-        dailySchedules: [] as any[],
+    const [schedule, setSchedule] = useState<Schedule>({
+        dailySchedules: [],
         slotDuration: 30,
         waitingTime: 0
     });
-    const [initialValues, setInitialValues] = useState<any>(null);
+    const [initialValues, setInitialValues] = useState<ProfileInitialValues | null>(null);
 
     const [isProfileComplete, setIsProfileComplete] = useState(true);
     const [missingFields, setMissingFields] = useState<string[]>([]);
     const governorates = getGovernorates();
     const cities = governorate ? getCities(governorate) : [];
 
-    useEffect(() => {
-        fetchProfile();
-    }, []);
-
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         try {
             const token = localStorage.getItem("token");
             if (!token) {
@@ -145,7 +173,11 @@ export default function DoctorProfilePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [router]);
+
+    useEffect(() => {
+        fetchProfile();
+    }, [fetchProfile]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -157,6 +189,11 @@ export default function DoctorProfilePage() {
             const token = localStorage.getItem("token");
             if (!token) {
                 router.push("/login");
+                return;
+            }
+
+            if (!initialValues) {
+                setSaving(false);
                 return;
             }
 
@@ -216,13 +253,13 @@ export default function DoctorProfilePage() {
                 if (res.data.doctor.missingFields) setMissingFields(res.data.doctor.missingFields);
 
                 // Update initial values after success
-                setInitialValues((prev: any) => ({
+                setInitialValues((prev) => prev ? ({
                     ...prev,
                     ...payload,
                     // Ensure the strings match next time
                     yearsOfExperience: payload.yearsOfExperience?.toString() || prev.yearsOfExperience,
                     consultationFee: payload.pricing?.consultationFee?.toString() || prev.consultationFee
-                }));
+                }) : null);
             }
 
             setSuccess("تم حفظ التغييرات بنجاح");
@@ -342,7 +379,7 @@ export default function DoctorProfilePage() {
                                 <div className="flex items-center gap-6">
                                     <div className="relative w-24 h-24 rounded-2xl bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 group">
                                         {profileImage ? (
-                                            <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                                            <NextImage src={profileImage} alt="Profile" width={100} height={100} className="w-full h-full object-cover" />
                                         ) : (
                                             <User className="w-10 h-10 text-gray-400" />
                                         )}

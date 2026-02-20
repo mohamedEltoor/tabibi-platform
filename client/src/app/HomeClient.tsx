@@ -19,19 +19,9 @@ import {
     Smile
 } from "lucide-react";
 import DoctorSearchBox from "@/components/DoctorSearchBox";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function HomeClient() {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const router = useRouter();
-
-    useEffect(() => {
-        const token = localStorage.getItem("token");
-        setIsLoggedIn(!!token);
-    }, []);
-
     const specialties = [
         { name: "أسنان", icon: Smile },
         { name: "باطنة", icon: Stethoscope },

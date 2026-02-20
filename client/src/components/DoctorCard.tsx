@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Star, MapPin, Clock, Calendar as CalendarIcon, Loader2, CheckCircle, ChevronLeft, CreditCard, Users } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BookingCalendar } from "./BookingCalendar";
 import { format } from "date-fns";
@@ -12,13 +12,34 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { formatTime12h } from "@/lib/utils";
 
+import NextImage from "next/image";
+
+interface Doctor {
+    _id: string;
+    user: {
+        name: string;
+        city?: string;
+        governorate?: string;
+    };
+    specialty: string;
+    subspecialty?: string;
+    profileImage?: string;
+    gender: string;
+    rating?: number;
+    yearsOfExperience: number;
+    pricing: {
+        consultationFee: number;
+    };
+    schedule: any;
+}
+
 interface DoctorCardProps {
-    doctor: any; // Replace with proper type
+    doctor: Doctor;
 }
 
 export function DoctorCard({ doctor }: DoctorCardProps) {
     const [showBooking, setShowBooking] = useState(false);
-    const [bookedSlots, setBookedSlots] = useState([]);
+    const [bookedSlots, setBookedSlots] = useState<{ date: string; time: string }[]>([]);
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [bookingDate, setBookingDate] = useState<string | null>(null);
     const [bookingTime, setBookingTime] = useState<string | null>(null);
@@ -27,13 +48,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
     const [guestPhone, setGuestPhone] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        if (showBooking && doctor._id) {
-            fetchBookedSlots();
-        }
-    }, [showBooking, doctor._id]);
-
-    const fetchBookedSlots = async () => {
+    const fetchBookedSlots = useCallback(async () => {
         try {
             setLoadingSlots(true);
             const res = await api.get(`/doctors/${doctor._id}/booked-slots`);
@@ -43,7 +58,13 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
         } finally {
             setLoadingSlots(false);
         }
-    };
+    }, [doctor._id]);
+
+    useEffect(() => {
+        if (showBooking && doctor._id) {
+            fetchBookedSlots();
+        }
+    }, [showBooking, doctor._id, fetchBookedSlots]);
 
     const handleBookSlot = (date: Date, time: string) => {
         setBookingDate(format(date, "yyyy-MM-dd"));
@@ -61,7 +82,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
 
         try {
             setIsSubmitting(true);
-            const payload: any = {
+            const payload: Record<string, any> = {
                 doctorId: doctor._id,
                 date: bookingDate,
                 time: bookingTime,
@@ -80,8 +101,13 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
             setBookingDate(null);
             setBookingTime(null);
             fetchBookedSlots(); // Refresh
-        } catch (err: any) {
-            toast.error(err.response?.data?.msg || "فشل الحجز. حاول مرة أخرى.");
+        } catch (err: unknown) {
+            let errorMsg = "فشل الحجز. حاول مرة أخرى.";
+            if (typeof err === "object" && err !== null && "response" in err) {
+                const axiosError = err as { response: { data?: { msg?: string } } };
+                errorMsg = axiosError.response.data?.msg || errorMsg;
+            }
+            toast.error(errorMsg);
         } finally {
             setIsSubmitting(false);
         }
@@ -96,9 +122,11 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
 
                     {doctor.profileImage ? (
                         <div className="relative w-full h-full z-10 transition-transform duration-700 group-hover:scale-105">
-                            <img
+                            <NextImage
                                 src={doctor.profileImage}
                                 alt={doctor.user?.name}
+                                width={300}
+                                height={300}
                                 className="w-full h-full object-cover"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />

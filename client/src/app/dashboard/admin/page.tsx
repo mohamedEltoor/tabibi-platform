@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import api from "@/lib/axios";
 import {
     Users,
-    UserCheck,
     Activity,
     ShieldCheck,
     LayoutDashboard,
@@ -20,7 +19,6 @@ import {
     Bell,
     ExternalLink,
     Filter,
-    MapPin,
     Pause,
     Trash2,
     X,
@@ -28,7 +26,6 @@ import {
     Wallet,
     History,
     CreditCard,
-    FileText,
     User
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +34,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -54,10 +50,88 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCallback } from "react";
+
+interface UserInfo {
+    _id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    createdAt: string;
+}
+
+interface Doctor {
+    _id: string;
+    user: {
+        name: string;
+        email: string;
+        phone: string;
+        city?: string;
+        governorate?: string;
+    };
+    specialty: string;
+    isProfileComplete: boolean;
+    isPaused: boolean;
+    isManuallyDeactivated: boolean;
+    trialExpiresAt?: string;
+    subscriptionExpiresAt?: string;
+    pricing?: {
+        consultationFee: number;
+    };
+    renewalRequest?: {
+        status: string;
+        phone: string;
+        receiptImage: string;
+    };
+    commissionPaymentRequest?: {
+        status: string;
+        phone: string;
+        receiptImage: string;
+        amount: number;
+    };
+    createdAt: string;
+}
+
+interface Subscription {
+    _id: string;
+    startDate: string;
+    endDate: string;
+    paymentPhone: string;
+}
+
+interface SummaryData {
+    doctor: Doctor;
+    totalAppointments: number;
+    totalRevenue: number;
+    pendingCommission: number;
+    stats: {
+        thisMonth: {
+            website: number;
+            direct: number;
+            commission: number;
+        };
+        lifetime: {
+            total: number;
+            website: number;
+            direct: number;
+            commission: number;
+        };
+    };
+    subscriptions: Subscription[];
+    patientDetails?: any;
+}
+
+interface AdminStats {
+    totalDoctors: number;
+    activeDoctors: number;
+    pendingRequests: number;
+    totalUsers: number;
+}
 
 export default function AdminDashboard() {
-    const [users, setUsers] = useState([]);
-    const [doctors, setDoctors] = useState([]);
+    const [users, setUsers] = useState<UserInfo[]>([]);
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Filter states
@@ -71,7 +145,7 @@ export default function AdminDashboard() {
     const [statusFilter, setStatusFilter] = useState("all");
 
     // Admin Stats state
-    const [adminStats, setAdminStats] = useState({
+    const [adminStats, setAdminStats] = useState<AdminStats>({
         totalDoctors: 0,
         activeDoctors: 0,
         pendingRequests: 0,
@@ -80,12 +154,73 @@ export default function AdminDashboard() {
 
     // Summary state
     const [summaryOpen, setSummaryOpen] = useState(false);
-    const [summaryData, setSummaryData] = useState<any>(null);
+    const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
     const [summaryLoading, setSummaryLoading] = useState(false);
     const pendingCountRef = useRef(0);
 
     const governorates = getGovernorates();
     const cities = governorate ? getCities(governorate) : [];
+
+    const playNotificationSound = useCallback(() => {
+        try {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+            audio.play();
+        } catch (_e) {
+            console.warn("Sound blocked by browser");
+        }
+    }, []);
+
+    const fetchStats = useCallback(async (isPoll = false) => {
+        try {
+            const res = await api.get("/admin/stats");
+            const newStats = res.data;
+
+            // Notification sound logic
+            if (isPoll && newStats.pendingRequests > pendingCountRef.current) {
+                playNotificationSound();
+                toast.info(`طلب مالي جديد! (إجمالي الطلبات: ${newStats.pendingRequests})`);
+            }
+
+            pendingCountRef.current = newStats.pendingRequests;
+            setAdminStats(newStats);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [playNotificationSound]);
+
+    const fetchData = useCallback(async (filters: Record<string, string | undefined> = {}) => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+
+            // Use provided filters or current state
+            const useGov = filters.governorate !== undefined ? filters.governorate : governorate;
+            const useCty = filters.city !== undefined ? filters.city : city;
+            const useSpec = filters.specialty !== undefined ? filters.specialty : specialty;
+            const useName = filters.searchTerm !== undefined ? (filters.searchTerm as string) : searchTerm;
+            const useGender = filters.gender !== undefined ? filters.gender : gender;
+            const useMin = filters.minPrice !== undefined ? filters.minPrice : minPrice;
+            const useMax = filters.maxPrice !== undefined ? filters.maxPrice : maxPrice;
+            const useStatus = filters.statusFilter !== undefined ? filters.statusFilter : statusFilter;
+
+            if (useGov && useGov !== "all") params.append('governorate', useGov as string);
+            if (useCty && useCty !== "all") params.append('city', useCty as string);
+            if (useSpec && useSpec !== "all") params.append('specialty', useSpec as string);
+            if (useName) params.append('name', useName as string);
+            if (useGender && useGender !== "all") params.append('gender', useGender as string);
+            if (useMin) params.append('minPrice', useMin as string);
+            if (useMax) params.append('maxPrice', useMax as string);
+            if (useStatus && useStatus !== "all") params.append('status', useStatus as string);
+
+            const url = `/admin/doctors?${params.toString()}`;
+            const res = await api.get(url);
+            setDoctors(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [governorate, city, specialty, searchTerm, gender, minPrice, maxPrice, statusFilter]);
 
     useEffect(() => {
         fetchData();
@@ -108,70 +243,10 @@ export default function AdminDashboard() {
         fetchUsers();
 
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchData, fetchStats]);
 
-    const fetchStats = async (isPoll = false) => {
-        try {
-            const res = await api.get("/admin/stats");
-            const newStats = res.data;
 
-            // Notification sound logic
-            if (isPoll && newStats.pendingRequests > pendingCountRef.current) {
-                playNotificationSound();
-                toast.info(`طلب مالي جديد! (إجمالي الطلبات: ${newStats.pendingRequests})`);
-            }
-
-            pendingCountRef.current = newStats.pendingRequests;
-            setAdminStats(newStats);
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const playNotificationSound = () => {
-        try {
-            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-            audio.play();
-        } catch (e) {
-            console.warn("Sound blocked by browser");
-        }
-    };
-
-    const fetchData = async (filters: any = {}) => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-
-            // Use provided filters or current state
-            const useGov = filters.governorate !== undefined ? filters.governorate : governorate;
-            const useCty = filters.city !== undefined ? filters.city : city;
-            const useSpec = filters.specialty !== undefined ? filters.specialty : specialty;
-            const useName = filters.searchTerm !== undefined ? filters.searchTerm : searchTerm;
-            const useGender = filters.gender !== undefined ? filters.gender : gender;
-            const useMin = filters.minPrice !== undefined ? filters.minPrice : minPrice;
-            const useMax = filters.maxPrice !== undefined ? filters.maxPrice : maxPrice;
-            const useStatus = filters.statusFilter !== undefined ? filters.statusFilter : statusFilter;
-
-            if (useGov && useGov !== "all") params.append('governorate', useGov);
-            if (useCty && useCty !== "all") params.append('city', useCty);
-            if (useSpec && useSpec !== "all") params.append('specialty', useSpec);
-            if (useName) params.append('name', useName);
-            if (useGender && useGender !== "all") params.append('gender', useGender);
-            if (useMin) params.append('minPrice', useMin);
-            if (useMax) params.append('maxPrice', useMax);
-            if (useStatus && useStatus !== "all") params.append('status', useStatus);
-
-            const url = `/admin/doctors?${params.toString()}`;
-            const res = await api.get(url);
-            setDoctors(res.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleReset = () => {
+    const handleReset = useCallback(() => {
         setSearchTerm("");
         setGovernorate("");
         setCity("");
@@ -188,36 +263,50 @@ export default function AdminDashboard() {
             minPrice: "",
             maxPrice: ""
         });
-    };
+    }, [fetchData]);
 
-    const handleActivateSubscription = async (id: string) => {
+    const handleActivateSubscription = useCallback(async (id: string) => {
         try {
             await api.put(`/admin/doctors/${id}/activate-subscription`);
             fetchData();
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [fetchData]);
 
-    const handleDeactivate = async (id: string) => {
+    const handleDeactivate = useCallback(async (id: string) => {
         try {
             await api.put(`/admin/doctors/${id}/deactivate`);
             fetchData();
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [fetchData]);
 
-    const handleTogglePause = async (id: string) => {
+    const handleTogglePause = useCallback(async (id: string) => {
         try {
             await api.put(`/admin/doctors/${id}/toggle-pause`);
             fetchData();
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [fetchData]);
 
-    const handleApproveRenewal = async (id: string) => {
+    const fetchSummary = useCallback(async (id: string) => {
+        setSummaryLoading(true);
+        setSummaryOpen(true);
+        try {
+            const res = await api.get(`/admin/doctors/${id}/summary`);
+            setSummaryData(res.data);
+        } catch (err) {
+            console.error(err);
+            toast.error("خطأ في تحميل بيانات الطبيب");
+        } finally {
+            setSummaryLoading(false);
+        }
+    }, []);
+
+    const handleApproveRenewal = useCallback(async (id: string) => {
         try {
             await api.put(`/admin/doctors/${id}/approve-renewal`);
             toast.success("تم الموافقة على التجديد");
@@ -230,9 +319,9 @@ export default function AdminDashboard() {
             console.error(err);
             toast.error("حدث خطأ أثناء الموافقة");
         }
-    };
+    }, [fetchData, fetchStats, summaryData, fetchSummary]);
 
-    const handleApproveCommission = async (id: string) => {
+    const handleApproveCommission = useCallback(async (id: string) => {
         try {
             await api.put(`/admin/doctors/${id}/approve-commission`);
             toast.success("تم الموافقة على سداد العمولات بنجاح");
@@ -245,23 +334,9 @@ export default function AdminDashboard() {
             console.error(err);
             toast.error("حدث خطأ أثناء الموافقة على العمولات");
         }
-    };
+    }, [fetchData, fetchStats, summaryData, fetchSummary]);
 
-    const fetchSummary = async (id: string) => {
-        setSummaryLoading(true);
-        setSummaryOpen(true);
-        try {
-            const res = await api.get(`/admin/doctors/${id}/summary`);
-            setSummaryData(res.data);
-        } catch (err) {
-            console.error(err);
-            toast.error("خطأ في تحميل بيانات الطبيب");
-        } finally {
-            setSummaryLoading(false);
-        }
-    };
-
-    const handleDeleteDoctor = async (id: string) => {
+    const handleDeleteDoctor = useCallback(async (id: string) => {
         if (!confirm("هل أنت متأكد من حذف هذا الطبيب وحسابه نهائياً؟")) return;
         try {
             await api.delete(`/admin/doctors/${id}`);
@@ -269,14 +344,14 @@ export default function AdminDashboard() {
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [fetchData]);
 
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
         localStorage.removeItem("token");
         localStorage.removeItem("role");
         window.dispatchEvent(new Event("auth-change"));
         window.location.href = "/login";
-    };
+    }, []);
 
     return (
         <div className="min-h-screen bg-[#0a0a0b] text-white flex overflow-hidden" dir="rtl">
@@ -385,7 +460,7 @@ export default function AdminDashboard() {
                                     <Badge variant="outline" className="bg-green-500/5 text-green-500 border-green-500/20 rounded-full font-bold">+5%</Badge>
                                 </div>
                                 <p className="text-sm text-gray-400 font-bold mb-1">الأطباء المفعلين</p>
-                                <h3 className="text-4xl font-black text-white">{doctors.filter((d: any) => d.isProfileComplete).length}</h3>
+                                <h3 className="text-4xl font-black text-white">{doctors.filter(d => d.isProfileComplete).length}</h3>
                             </CardContent>
                         </Card>
 
@@ -597,7 +672,7 @@ export default function AdminDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/5">
-                                                {doctors.map((doc: any) => (
+                                                {doctors.map((doc) => (
                                                     <tr key={doc._id} className="hover:bg-white/[0.02] transition-colors group">
                                                         <td className="px-8 py-6">
                                                             <div
@@ -781,7 +856,7 @@ export default function AdminDashboard() {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Button
-                                                onClick={() => window.open(summaryData.doctor.renewalRequest.receiptImage, '_blank')}
+                                                onClick={() => summaryData.doctor.renewalRequest?.receiptImage && window.open(summaryData.doctor.renewalRequest.receiptImage, '_blank')}
                                                 variant="outline"
                                                 className="bg-white/5 border-white/10 text-white rounded-xl font-bold"
                                             >
@@ -810,7 +885,7 @@ export default function AdminDashboard() {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Button
-                                                onClick={() => window.open(summaryData.doctor.commissionPaymentRequest.receiptImage, '_blank')}
+                                                onClick={() => summaryData.doctor.commissionPaymentRequest?.receiptImage && window.open(summaryData.doctor.commissionPaymentRequest.receiptImage, '_blank')}
                                                 variant="outline"
                                                 className="bg-white/5 border-white/10 text-white rounded-xl font-bold"
                                             >
@@ -895,7 +970,7 @@ export default function AdminDashboard() {
                                     <div className="space-y-4">
                                         {summaryData.subscriptions.length === 0 ? (
                                             <p className="text-gray-500 font-bold p-8 bg-white/5 rounded-3xl text-center">لا يوجد سجل مدفوعات سابق</p>
-                                        ) : summaryData.subscriptions.map((sub: any) => (
+                                        ) : summaryData.subscriptions.map((sub: Subscription) => (
                                             <div key={sub._id} className="bg-white/5 p-5 rounded-3xl border border-white/5 flex items-center justify-between">
                                                 <div>
                                                     <p className="font-black text-sm">{new Date(sub.startDate).toLocaleDateString('en-GB')} - {new Date(sub.endDate).toLocaleDateString('en-GB')}</p>

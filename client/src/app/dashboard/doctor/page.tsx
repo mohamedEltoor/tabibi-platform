@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -18,6 +18,66 @@ import { toast } from "sonner";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+interface Patient {
+    _id: string;
+    name: string;
+    phone: string;
+    type?: 'user' | 'guest';
+}
+
+interface Appointment {
+    _id: string;
+    date: string;
+    time: string;
+    status: string;
+    source: 'website' | 'direct';
+    patient?: Patient;
+    guestDetails?: {
+        name: string;
+        phone: string;
+    };
+}
+
+interface DoctorProfile {
+    _id: string;
+    user: {
+        name: string;
+        phone?: string;
+        city?: string;
+        governorate?: string;
+        address?: string;
+    };
+    pricing?: {
+        consultationFee: number;
+    };
+    schedule?: any;
+    hasValidAccess?: boolean;
+    isPaused?: boolean;
+    debtBreakdown?: {
+        subscription: number;
+        commission: number;
+        appointmentCount: number;
+    };
+    isProfileComplete?: boolean;
+    missingFields?: string[];
+    subscriptionExpiresAt?: string;
+    trialExpiresAt?: string;
+    renewalRequest?: { status: string };
+    commissionPaymentRequest?: { status: string };
+}
+
+interface FinanceStats {
+    thisMonth: {
+        appointments: number;
+        commission: number;
+        unpaidCommission?: number;
+    };
+    lifetime: {
+        totalAppointments: number;
+        totalCommission: number;
+    };
+}
+
 export default function DoctorDashboard() {
     const [stats, setStats] = useState({
         appointments: 0,
@@ -27,17 +87,17 @@ export default function DoctorDashboard() {
         revenue: 0,
         pending: 0,
     });
-    const [appointments, setAppointments] = useState([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [doctorProfile, setDoctorProfile] = useState<any>(null);
-    const [bookedSlots, setBookedSlots] = useState<any[]>([]);
+    const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+    const [bookedSlots, setBookedSlots] = useState<{ date: string; time: string }[]>([]);
 
     // Walk-in Booking State
     const [isBookingOpen, setIsBookingOpen] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{ date: Date, time: string } | null>(null);
     const [patientName, setPatientName] = useState("");
     const [patientPhone, setPatientPhone] = useState("");
-    const [patientSearchResults, setPatientSearchResults] = useState([]);
+    const [patientSearchResults, setPatientSearchResults] = useState<Patient[]>([]);
     const [bookingLoading, setBookingLoading] = useState(false);
 
     // Quick Fee Edit State
@@ -67,7 +127,7 @@ export default function DoctorDashboard() {
     const [customStart, setCustomStart] = useState<Date | null>(null);
     const [customEnd, setCustomEnd] = useState<Date | null>(null);
 
-    const [financeStats, setFinanceStats] = useState<any>(null);
+    const [financeStats, setFinanceStats] = useState<FinanceStats | null>(null);
 
     const getRemainingDays = () => {
         if (!doctorProfile) return { days: 0, text: 'انتهاء الصلاحية' };
@@ -86,6 +146,41 @@ export default function DoctorDashboard() {
 
     const remaining = getRemainingDays();
 
+    const fetchFinance = useCallback(async () => {
+        try {
+            const res = await api.get("/doctors/me/finance");
+            setFinanceStats(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    }, []);
+
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await api.get("/appointments/doctor");
+            setAppointments(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchProfileAndSlots = useCallback(async () => {
+        try {
+            const res = await api.get("/doctors/me");
+            const doctorData = res.data.doctor;
+            setDoctorProfile(doctorData);
+
+            if (doctorData?._id) {
+                const slotsRes = await api.get(`/doctors/${doctorData._id}/booked-slots`);
+                setBookedSlots(slotsRes.data);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }, []);
+
     // Persistence Logic
     useEffect(() => {
         const savedRange = localStorage.getItem("doctor_global_filter_dateRange");
@@ -100,27 +195,7 @@ export default function DoctorDashboard() {
         fetchData();
         fetchProfileAndSlots();
         fetchFinance();
-    }, []);
-
-    const fetchFinance = async () => {
-        try {
-            const res = await api.get("/doctors/me/finance");
-            setFinanceStats(res.data);
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const fetchData = async () => {
-        try {
-            const res = await api.get("/appointments/doctor");
-            setAppointments(res.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [fetchData, fetchProfileAndSlots, fetchFinance]);
 
     const handleFinanceSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -202,7 +277,7 @@ export default function DoctorDashboard() {
         }
     };
 
-    const checkDateRange = (dateString: string) => {
+    const checkDateRange = useCallback((dateString: string) => {
         const appDate = new Date(dateString);
         const now = new Date();
 
@@ -232,43 +307,29 @@ export default function DoctorDashboard() {
         }
 
         return true;
-    };
+    }, [dateRange, customStart, customEnd]);
 
-    useEffect(() => {
-        calculateStats(appointments);
-    }, [dateRange, appointments, customStart, customEnd, doctorProfile]);
-
-    const calculateStats = (data: any[]) => {
-        const filtered = data.filter((app: any) => checkDateRange(app.date));
+    const calculateStats = useCallback((data: Appointment[]) => {
+        const filtered = data.filter((app: Appointment) => checkDateRange(app.date));
         const doctorFees = doctorProfile?.pricing?.consultationFee || 0;
 
         setStats({
             appointments: filtered.length,
-            online: filtered.filter((a: any) => a.source === 'website').length,
-            direct: filtered.filter((a: any) => a.source === 'direct').length,
-            patients: new Set(filtered.map((a: any) => a.patient?._id || a.guestDetails?.phone)).size,
-            revenue: filtered.filter((a: any) => a.status === 'attended').length * doctorFees,
-            pending: filtered.filter((a: any) => a.status === 'pending').length,
+            online: filtered.filter((a: Appointment) => a.source === 'website').length,
+            direct: filtered.filter((a: Appointment) => a.source === 'direct').length,
+            patients: new Set(filtered.map((a: Appointment) => a.patient?._id || a.guestDetails?.phone)).size,
+            revenue: filtered.filter((a: Appointment) => a.status === 'attended').length * doctorFees,
+            pending: filtered.filter((a: Appointment) => a.status === 'pending').length,
         });
-    };
+    }, [checkDateRange, doctorProfile]);
 
-    const fetchProfileAndSlots = async () => {
-        try {
-            const res = await api.get("/doctors/me");
-            const doctorData = res.data.doctor;
-            setDoctorProfile(doctorData);
+    useEffect(() => {
+        calculateStats(appointments);
+    }, [calculateStats, appointments]);
 
-            if (doctorData?._id) {
-                const slotsRes = await api.get(`/doctors/${doctorData._id}/booked-slots`);
-                setBookedSlots(slotsRes.data);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     const handleWalkInBook = async () => {
-        if (!selectedSlot || !patientName || !patientPhone) return;
+        if (!doctorProfile || !selectedSlot || !patientName || !patientPhone) return;
         setBookingLoading(true);
         try {
             await api.post("/appointments", {
@@ -297,13 +358,13 @@ export default function DoctorDashboard() {
     };
 
     const handleFeeUpdate = async () => {
-        if (!tempFee) return;
+        if (!tempFee || !doctorProfile) return;
         setFeeSaving(true);
         try {
             await api.put("/doctors/me", {
                 ...doctorProfile,
                 pricing: {
-                    ...doctorProfile?.pricing,
+                    ...doctorProfile.pricing,
                     consultationFee: Number(tempFee)
                 }
             });
@@ -329,12 +390,12 @@ export default function DoctorDashboard() {
     };
 
     const filteredAppointments = appointments
-        .filter((apt: any) => {
+        .filter((apt: Appointment) => {
             const matchesStatus = filterStatus === "all" || apt.status === filterStatus;
             const matchesDate = checkDateRange(apt.date);
             return matchesStatus && matchesDate;
         })
-        .sort((a: any, b: any) => {
+        .sort((a: Appointment, b: Appointment) => {
             const dateA = new Date(a.date).getTime();
             const dateB = new Date(b.date).getTime();
 
@@ -366,7 +427,7 @@ export default function DoctorDashboard() {
                                         ? "نود إعلامك بأن إدارة المنصة قد قامت بإيقاف حسابك مؤقتاً. يرجى التواصل معنا للاستفسار أو إعادة التفعيل."
                                         : (
                                             <>
-                                                {doctorProfile?.debtBreakdown?.subscription > 0 ? (
+                                                {doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0 ? (
                                                     <>
                                                         نعتذر، ولكن حسابك متوقف لانتهاء صلاحية الاشتراك. يرجى تجديد الاشتراك السنوي/الشهري لتتمكن من استخدام المنصة والظهور للمرضى.
                                                         <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/10 text-right">
@@ -382,7 +443,7 @@ export default function DoctorDashboard() {
                                                         <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/10 text-right">
                                                             <div className="flex justify-between items-center text-white font-black">
                                                                 <span>مديونية العمولات:</span>
-                                                                <span>{doctorProfile?.debtBreakdown?.commission || 0} ج.م</span>
+                                                                <span>{doctorProfile.debtBreakdown?.commission || 0} ج.م</span>
                                                             </div>
                                                         </div>
                                                     </>
@@ -398,21 +459,21 @@ export default function DoctorDashboard() {
                                         </Button>
                                     ) : (
                                         <>
-                                            {(doctorProfile?.debtBreakdown?.subscription > 0 && doctorProfile.renewalRequest?.status === 'pending') ||
-                                                (doctorProfile?.debtBreakdown?.subscription <= 0 && doctorProfile.commissionPaymentRequest?.status === 'pending') ? (
+                                            {(doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0 && doctorProfile.renewalRequest?.status === 'pending') ||
+                                                (doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription <= 0 && doctorProfile.commissionPaymentRequest?.status === 'pending') ? (
                                                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-amber-500 font-bold">
                                                     قيد المراجعة: تم إرسال طلب السداد بنجاح
                                                 </div>
                                             ) : (
                                                 <Button
                                                     onClick={() => {
-                                                        const type = doctorProfile?.debtBreakdown?.subscription > 0 ? 'renewal' : 'commission';
+                                                        const type = (doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) ? 'renewal' : 'commission';
                                                         setFinModalType(type);
                                                         setIsRenewalOpen(true);
                                                     }}
                                                     className="w-full h-14 rounded-2xl text-lg font-black shadow-lg bg-red-600 hover:bg-red-700 shadow-red-900/20"
                                                 >
-                                                    {doctorProfile?.debtBreakdown?.subscription > 0 ? "تجديد الاشتراك الآن" : "سداد العمولات والتفعيل"}
+                                                    {(doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) ? "تجديد الاشتراك الآن" : "سداد العمولات والتفعيل"}
                                                 </Button>
                                             )}
                                         </>
@@ -448,7 +509,7 @@ export default function DoctorDashboard() {
             </div>
 
             {/* Billing Warning Alert (End of Month) */}
-            {doctorProfile?.debtBreakdown?.commission > 0 && (new Date().getDate() <= 5) && (
+            {doctorProfile?.debtBreakdown && doctorProfile.debtBreakdown.commission > 0 && (new Date().getDate() <= 5) && (
 
                 <div className="bg-red-600 border-none rounded-2xl p-6 text-white shadow-2xl shadow-red-500/20 animate-in fade-in slide-in-from-top-4 duration-700">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -730,7 +791,7 @@ export default function DoctorDashboard() {
                                         />
                                         {patientSearchResults.length > 0 && patientPhone.length > 2 && (
                                             <div className="absolute top-full left-0 right-0 bg-white border rounded-md shadow-lg z-10 mt-1 max-h-40 overflow-y-auto">
-                                                {patientSearchResults.map((p: any) => (
+                                                {patientSearchResults.map((p) => (
                                                     <div
                                                         key={p._id}
                                                         className="p-2 hover:bg-slate-50 cursor-pointer text-sm flex justify-between items-center"
@@ -895,17 +956,8 @@ export default function DoctorDashboard() {
                             <h3 className="text-xl md:text-2xl font-black text-rose-600 mt-1 text-right">
                                 {(financeStats?.thisMonth?.unpaidCommission !== undefined) ? financeStats.thisMonth.unpaidCommission : (financeStats?.thisMonth?.commission || 0)} ج.م
                             </h3>
-                            <div className="flex justify-between items-center mt-2 flex-row-reverse">
-                                <p className="text-[10px] text-gray-400 font-bold text-right">يرجى السداد دورياً</p>
-                                <button
-                                    onClick={() => {
-                                        setFinModalType('commission');
-                                        setIsRenewalOpen(true);
-                                    }}
-                                    className="text-[10px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black border border-rose-100 hover:bg-rose-100 transition-colors"
-                                >
-                                    سدد الآن
-                                </button>
+                            <div className="mt-2">
+                                <p className="text-[10px] text-gray-400 font-bold text-right">سيتم المطالبة أول الشهر القادم</p>
                             </div>
                         </div>
                     </CardContent>
@@ -1012,7 +1064,7 @@ export default function DoctorDashboard() {
                             </div>
                         ) : filteredAppointments.length > 0 ? (
                             <div className="divide-y divide-gray-50">
-                                {filteredAppointments.map((apt: any) => (
+                                {filteredAppointments.map((apt) => (
                                     <div key={apt._id} className="group p-4 md:p-6 hover:bg-slate-50/50 transition-all duration-300">
                                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                                             {/* Patient Main Info */}

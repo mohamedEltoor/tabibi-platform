@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ function VerifyEmailContent() {
         }
     }, [searchParams]);
 
-    const handleVerify = async (e: React.FormEvent) => {
+    const handleVerify = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email || !code) {
             toast.error("يرجى إدخال البريد الإلكتروني والكود");
@@ -33,7 +33,7 @@ function VerifyEmailContent() {
 
         setLoading(true);
         try {
-            const res = await api.post("/auth/verify-email", { email, code });
+            const res = await api.post<{ msg?: string }>("/auth/verify-email", { email, code });
             toast.success(res.data.msg || "تم تفعيل الحساب بنجاح");
 
             // Redirect based on role or to login
@@ -45,9 +45,9 @@ function VerifyEmailContent() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [email, code, router]);
 
-    const handleResend = async () => {
+    const handleResend = useCallback(async () => {
         if (!email) {
             toast.error("يرجى إدخال البريد الإلكتروني أولاً");
             return;
@@ -55,14 +55,14 @@ function VerifyEmailContent() {
 
         setResending(true);
         try {
-            const res = await api.post("/auth/resend-verification", { email });
+            await api.post("/auth/resend-verification", { email });
             toast.success("تم إعادة إرسال كود التفعيل");
         } catch (err: any) {
             toast.error(err.response?.data?.msg || "حدث خطأ أثناء إعادة الإرسال");
         } finally {
             setResending(false);
         }
-    };
+    }, [email]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">

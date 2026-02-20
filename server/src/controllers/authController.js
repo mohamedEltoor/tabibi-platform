@@ -40,7 +40,7 @@ exports.register = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Security: Only specific email can be admin, and it MUST be admin
-        const ADMIN_EMAIL = 'dev.mohamedeltoor@gmail.com';
+        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
         let finalRole = role || 'patient';
         if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
             finalRole = 'admin';
@@ -52,7 +52,6 @@ exports.register = async (req, res) => {
         const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-        console.log('Creating user with role:', finalRole);
         user = new User({
             name,
             email,
@@ -68,14 +67,11 @@ exports.register = async (req, res) => {
             isEmailVerified: false,
         });
 
-        console.log('User object before save:', { role: user.role, name: user.name });
         await user.save();
-        console.log('User object after save:', { role: user.role, id: user.id });
 
         // Send verification email
         try {
             await sendVerificationEmail(email, name, verificationToken);
-            console.log('Verification email sent to:', email);
         } catch (emailError) {
             console.error('Error sending verification email:', emailError.message);
             // Don't fail registration if email sending fails
@@ -87,7 +83,7 @@ exports.register = async (req, res) => {
                 const { specialty: reqSpecialty, subspecialty } = req.body;
                 const doctor = new Doctor({
                     user: user.id,
-                    specialty: reqSpecialty || 'عام', // Use provided specialty or default
+                    specialty: reqSpecialty || 'عام',
                     subspecialty: subspecialty || '',
                     bio: '',
                     pricing: {
@@ -97,7 +93,6 @@ exports.register = async (req, res) => {
                     availability: []
                 });
                 await doctor.save();
-                console.log('Doctor profile created for user:', user.id);
             } catch (docErr) {
                 console.error('Error creating doctor profile:', docErr.message);
                 // Don't fail registration if doctor profile creation fails
@@ -311,7 +306,6 @@ exports.googleAuthCallback = async (req, res) => {
                 }
 
                 // Redirect to frontend with token and metadata
-                console.log(`[GoogleAuth] Redirecting to frontend with Role: ${user.role}, isNewUser: ${isNewUser}`);
                 res.redirect(
                     `${process.env.FRONTEND_URL}/auth/google/callback?token=${token}&role=${user.role}&verified=true&isNewUser=${isNewUser}&hasAppointments=${hasAppointments}`
                 );

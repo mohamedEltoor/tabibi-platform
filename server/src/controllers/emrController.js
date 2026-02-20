@@ -288,32 +288,11 @@ exports.uploadAttachments = async (req, res) => {
             return res.status(400).json({ msg: 'No files uploaded' });
         }
 
-        const fileUrls = await Promise.all(req.files.map(async (file) => {
-            // Memory Storage (Production/Supabase)
-            if (file.buffer && process.env.SUPABASE_URL) {
-                const fileName = `emr/${Date.now()}-${file.originalname}`;
-                const { data, error } = await supabase.storage
-                    .from('tabibi')
-                    .upload(fileName, file.buffer, {
-                        contentType: file.mimetype,
-                        upsert: true
-                    });
+        const fileUrls = req.files.map(file => file.path || file.secure_url);
 
-                if (error) throw error;
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('tabibi')
-                    .getPublicUrl(fileName);
-
-                return publicUrl;
-            }
-
-            // Disk Storage (Development/Local)
-            return `/api/uploads/emr/${file.filename}`;
-        }));
         res.json({ urls: fileUrls });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ msg: 'Server error' });
+        console.error('EMR Controller Error:', err);
+        res.status(500).json({ msg: 'Server error', details: err.message });
     }
 };

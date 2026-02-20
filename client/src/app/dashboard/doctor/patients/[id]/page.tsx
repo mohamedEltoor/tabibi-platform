@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,9 +12,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Loader2, ArrowLeft, MoreHorizontal, UserCheck, CalendarDays, History, Trash2, Edit3, ClipboardList, Info, User, Phone, Calendar, Clock, Pill, Stethoscope, ChevronRight, FileText, Upload, Image, FileIcon, X, Eye } from "lucide-react";
-import { format } from "date-fns";
-import { ar } from "date-fns/locale";
+import { Plus, Loader2, ArrowLeft, PlusCircle, History, Trash2, Edit3, ClipboardList, Info, User, Phone, Pill, Stethoscope, ChevronRight, FileText, Upload, FileIcon, X, Eye } from "lucide-react";
+import NextImage from "next/image";
+
+interface Prescription {
+    medication: string;
+    dosage?: string;
+    duration?: string;
+}
+
+interface Medication {
+    name: string;
+    dosage: string;
+    duration: string;
+}
+
+interface EMRRecord {
+    _id: string;
+    diagnosis: string;
+    symptoms: string[];
+    prescriptions: Prescription[];
+    notes: string;
+    visitDate: string;
+    attachments: string[];
+}
+
+interface PatientProfile {
+    _id: string;
+    name: string;
+    phone: string;
+    gender?: string;
+    type: 'user' | 'guest';
+}
 
 export default function PatientDetailsPage() {
     const params = useParams();
@@ -22,8 +51,8 @@ export default function PatientDetailsPage() {
     const patientId = params.id as string;
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000';
 
-    const [profile, setProfile] = useState<any>(null);
-    const [history, setHistory] = useState([]);
+    const [profile, setProfile] = useState<PatientProfile | null>(null);
+    const [history, setHistory] = useState<EMRRecord[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Add Visit State
@@ -33,14 +62,14 @@ export default function PatientDetailsPage() {
     const [newVisit, setNewVisit] = useState({
         diagnosis: "",
         symptoms: "",
-        medications: [{ name: "", dosage: "", duration: "" }],
+        medications: [{ name: "", dosage: "", duration: "" }] as Medication[],
         notes: "",
         visitDate: new Date().toISOString().split('T')[0],
         attachments: [] as string[]
     });
     const [uploading, setUploading] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [profileRes, historyRes] = await Promise.all([
@@ -49,20 +78,23 @@ export default function PatientDetailsPage() {
             ]);
             setProfile(profileRes.data);
             setHistory(historyRes.data);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
             toast.error("فشل تحميل بيانات المريض");
-            if (err.response?.status === 404) {
-                router.push("/dashboard/doctor/patients");
+            if (typeof err === "object" && err !== null && "response" in err) {
+                const axiosError = err as { response: { status: number } };
+                if (axiosError.response.status === 404) {
+                    router.push("/dashboard/doctor/patients");
+                }
             }
         } finally {
             setLoading(false);
         }
-    };
+    }, [patientId, router]);
 
     useEffect(() => {
         if (patientId) fetchData();
-    }, [patientId]);
+    }, [patientId, fetchData]);
 
     const handleAddMedication = () => {
         setNewVisit({
@@ -82,12 +114,12 @@ export default function PatientDetailsPage() {
         setNewVisit({ ...newVisit, medications: updated });
     };
 
-    const handleEditVisit = (record: any) => {
+    const handleEditVisit = (record: EMRRecord) => {
         setEditingVisitId(record._id);
 
         // Transform prescriptions back to form format
         const formMedications = record.prescriptions.length > 0
-            ? record.prescriptions.map((p: any) => ({
+            ? record.prescriptions.map((p: Prescription) => ({
                 name: p.medication,
                 dosage: p.dosage || "",
                 duration: p.duration || ""
@@ -106,7 +138,7 @@ export default function PatientDetailsPage() {
         setIsAddOpen(true);
     };
 
-    const handleOpenAdd = () => {
+    const handleOpenAdd = useCallback(() => {
         setEditingVisitId(null);
         setNewVisit({
             diagnosis: "",
@@ -117,9 +149,9 @@ export default function PatientDetailsPage() {
             attachments: []
         });
         setIsAddOpen(true);
-    };
+    }, []);
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
@@ -144,7 +176,7 @@ export default function PatientDetailsPage() {
         } finally {
             setUploading(false);
         }
-    };
+    }, []);
 
     const removeAttachment = (index: number) => {
         setNewVisit(prev => ({
@@ -153,7 +185,7 @@ export default function PatientDetailsPage() {
         }));
     };
 
-    const handleSubmitVisit = async () => {
+    const handleSubmitVisit = useCallback(async () => {
         if (!newVisit.diagnosis) {
             toast.error("يرجى كتابة التشخيص");
             return;
@@ -201,25 +233,29 @@ export default function PatientDetailsPage() {
                 attachments: []
             });
             fetchData();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            const errorMsg = err.response?.data?.error || err.response?.data?.msg || "فشل حفظ الزيارة";
+            let errorMsg = "فشل حفظ الزيارة";
+            if (typeof err === "object" && err !== null && "response" in err) {
+                const axiosError = err as { response: { data?: { error?: string; msg?: string } } };
+                errorMsg = axiosError.response.data?.error || axiosError.response.data?.msg || errorMsg;
+            }
             toast.error(errorMsg);
         } finally {
             setSubmitLoading(false);
         }
-    };
+    }, [newVisit, editingVisitId, patientId, profile?.name, fetchData]);
 
-    const updateGender = async (gender: string) => {
+    const updateGender = useCallback(async (gender: string) => {
         try {
             await api.put(`/doctors/me/patients/${patientId}/profile`, { gender });
-            setProfile({ ...profile, gender });
+            setProfile(prev => prev ? { ...prev, gender } : null);
             toast.success("تم تحديث الجنس بنجاح");
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
             toast.error("فشل تحديث الجنس");
         }
-    };
+    }, [patientId]);
 
     if (loading) return <div className="container py-12 text-center">جاري التحميل...</div>;
     if (!profile) return <div className="container py-12 text-center">لم يتم العثور على المريض</div>;
@@ -284,7 +320,7 @@ export default function PatientDetailsPage() {
                                     className="h-16 px-8 rounded-2xl bg-slate-900 hover:bg-red-600 text-white font-black text-lg gap-3 shadow-xl transition-all active:scale-95"
                                     onClick={handleOpenAdd}
                                 >
-                                    <Plus className="h-6 w-6" />
+                                    <PlusCircle className="h-6 w-6" />
                                     تسجيل زيارة جديدة
                                 </Button>
                             </DialogTrigger>
@@ -411,7 +447,7 @@ export default function PatientDetailsPage() {
                                                     return (
                                                         <div key={idx} className="relative group aspect-square rounded-2xl border border-slate-100 overflow-hidden bg-slate-50">
                                                             {isImage ? (
-                                                                <img src={fullFileUrl} alt="attachment" className="w-full h-full object-cover" />
+                                                                <NextImage src={fullFileUrl} alt="attachment" width={200} height={200} className="w-full h-full object-cover" />
                                                             ) : (
                                                                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                                                                     <FileIcon className="h-8 w-8 text-slate-300" />
@@ -501,7 +537,7 @@ export default function PatientDetailsPage() {
                     </div>
                 ) : (
                     <div className="space-y-12 relative before:absolute before:right-[5.75rem] md:before:right-[7.75rem] before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-100">
-                        {history.map((record: any, index: number) => (
+                        {history.map((record, index) => (
                             <div key={record._id} className="relative flex flex-col md:flex-row gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
                                 {/* Date Section */}
                                 <div className="md:w-32 flex md:justify-end md:text-left shrink-0 z-10 pt-2">
@@ -563,7 +599,7 @@ export default function PatientDetailsPage() {
                                                     الوصفة الطبية (Rx)
                                                 </p>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    {record.prescriptions.map((rx: any, i: number) => (
+                                                    {record.prescriptions.map((rx: Prescription, i: number) => (
                                                         <div key={i} className="flex gap-4 items-center bg-red-50/30 p-4 rounded-2xl border border-red-50/50">
                                                             <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm border border-red-100 shrink-0">
                                                                 <Pill className="h-5 w-5 text-red-500" />
@@ -607,7 +643,7 @@ export default function PatientDetailsPage() {
                                                         return (
                                                             <div key={i} className="group relative aspect-square rounded-2xl border border-slate-100 overflow-hidden bg-slate-50 shadow-sm hover:shadow-md transition-all">
                                                                 {isImage ? (
-                                                                    <img src={fullFileUrl} alt="attachment" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                                                    <NextImage src={fullFileUrl} alt="attachment" width={400} height={400} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                                                                 ) : (
                                                                     <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                                                                         <FileIcon className="h-10 w-10 text-slate-300" />

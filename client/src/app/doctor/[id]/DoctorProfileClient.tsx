@@ -1,23 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/axios";
 import { useParams, useRouter } from "next/navigation";
-import { MapPin as MapPinIcon, Clock, Calendar as CalendarIcon, Phone, Home, CheckCircle2, Award, ShieldCheck, GraduationCap, Info, Wallet, ChevronLeft, Stethoscope, Star } from "lucide-react";
+import { MapPin as MapPinIcon, Clock, Calendar as CalendarIcon, Home, CheckCircle2, Award, ShieldCheck, GraduationCap, Info, Wallet, ChevronLeft, Stethoscope, Star } from "lucide-react";
 import { BookingCalendar } from "@/components/BookingCalendar";
 import { format, isToday, isTomorrow } from "date-fns";
 import { ar } from "date-fns/locale";
-import { Drawer, DrawerContent, DrawerTrigger, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTrigger, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { getFirstAvailableSlot } from "@/lib/scheduleUtils";
 import { toast } from "sonner";
 import { formatTime12h } from "@/lib/utils";
 import dynamic from "next/dynamic";
+import NextImage from "next/image";
+
+interface DoctorUser {
+    name: string;
+    city: string;
+    governorate: string;
+    address: string;
+    phone: string;
+}
+
+interface Doctor {
+    user: DoctorUser;
+    specialty: string;
+    subspecialty?: string;
+    bio: string;
+    profileImage?: string;
+    gender: string;
+    rating?: number;
+    yearsOfExperience?: number;
+    pricing: {
+        consultationFee: number;
+    };
+    schedule: any; // Keeping any for complex schedule for now or could define ScheduleConfig
+    location?: {
+        lat: number;
+        lng: number;
+    };
+}
 
 const MapView = dynamic(() => import("@/components/MapPicker").then(mod => {
     return function MapDisplay({ value }: { value: { lat: number, lng: number } }) {
@@ -30,10 +58,10 @@ const MapView = dynamic(() => import("@/components/MapPicker").then(mod => {
     }
 }), { ssr: false });
 
-export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: any }) {
+export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: Doctor }) {
     const { id } = useParams();
-    const [doctor, setDoctor] = useState<any>(initialDoctor);
-    const [bookedSlots, setBookedSlots] = useState<any[]>([]);
+    const [doctor] = useState<Doctor>(initialDoctor);
+    const [bookedSlots, setBookedSlots] = useState<{ date: string, time: string }[]>([]);
     const [bookingDate, setBookingDate] = useState("");
     const [bookingTime, setBookingTime] = useState("");
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -45,20 +73,20 @@ export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: 
     const isDesktop = useMediaQuery("(min-width: 1024px)");
     const router = useRouter();
 
-    useEffect(() => {
-        if (id && id !== "undefined") {
-            fetchBookedSlots();
-        }
-    }, [id]);
-
-    const fetchBookedSlots = async () => {
+    const fetchBookedSlots = useCallback(async () => {
         try {
             const res = await api.get(`/doctors/${id}/booked-slots`);
             setBookedSlots(res.data);
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        if (id && id !== "undefined") {
+            Promise.resolve().then(() => fetchBookedSlots());
+        }
+    }, [id, fetchBookedSlots]);
 
     const handleBookClick = async () => {
         const token = localStorage.getItem("token");
@@ -81,7 +109,7 @@ export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: 
 
     const submitBooking = async (phone: string, guestDetails?: { name: string, phone: string }) => {
         try {
-            const payload: any = {
+            const payload: Record<string, any> = {
                 doctorId: id,
                 date: bookingDate,
                 time: bookingTime,
@@ -110,9 +138,14 @@ export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: 
                 setBookingTime("");
                 fetchBookedSlots();
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            toast.error(err.response?.data?.msg || "فشل الحجز. يرجى المحاولة مرة أخرى.");
+            let errorMsg = "فشل الحجز. يرجى المحاولة مرة أخرى.";
+            if (typeof err === "object" && err !== null && "response" in err) {
+                const axiosError = err as { response: { data?: { msg?: string } } };
+                errorMsg = axiosError.response.data?.msg || errorMsg;
+            }
+            toast.error(errorMsg);
         }
     };
 
@@ -208,7 +241,7 @@ export default function DoctorProfileClient({ initialDoctor }: { initialDoctor: 
                             <div className="w-48 h-48 rounded-[2.5rem] bg-white p-2 shadow-2xl relative overflow-hidden">
                                 <div className="w-full h-full rounded-[2rem] bg-gray-50 flex items-center justify-center text-7xl overflow-hidden">
                                     {doctor.profileImage ? (
-                                        <img src={doctor.profileImage} alt={doctor.user.name} className="w-full h-full object-cover" />
+                                        <NextImage src={doctor.profileImage} alt={doctor.user.name} width={200} height={200} className="w-full h-full object-cover" />
                                     ) : (
                                         doctor.gender === 'female' ? "👩‍⚕️" : "👨‍⚕️"
                                     )}

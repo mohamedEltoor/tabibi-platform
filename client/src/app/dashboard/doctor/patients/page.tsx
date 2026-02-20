@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,22 @@ import { ar } from "date-fns/locale";
 import Link from "next/link";
 import { Plus, Loader2, ArrowLeft, MoreHorizontal, UserCheck, CalendarDays, History } from "lucide-react";
 
+interface Patient {
+    _id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    gender?: 'male' | 'female';
+    createdAt: string;
+}
+
 export default function PatientsPage() {
-    const [patients, setPatients] = useState([]);
-    const [filteredPatients, setFilteredPatients] = useState([]);
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
 
-    const fetchPatients = async () => {
+    const fetchPatients = useCallback(async () => {
         setLoading(true);
         try {
             const res = await api.get("/doctors/me/patients");
@@ -30,11 +39,11 @@ export default function PatientsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchPatients();
-    }, []);
+    }, [fetchPatients]);
 
     useEffect(() => {
         if (!searchTerm) {
@@ -42,7 +51,7 @@ export default function PatientsPage() {
             return;
         }
         const term = searchTerm.toLowerCase();
-        const results = patients.filter((p: any) =>
+        const results = patients.filter((p) =>
             p.name.toLowerCase().includes(term) ||
             p.phone?.includes(term) ||
             p.email?.toLowerCase().includes(term)
@@ -106,7 +115,7 @@ export default function PatientsPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 md:gap-8">
-                    {filteredPatients.map((patient: any) => (
+                    {filteredPatients.map((patient) => (
                         <Card key={patient._id} className="group relative overflow-hidden border-none shadow-lg shadow-slate-200/40 bg-white hover:shadow-2xl hover:shadow-red-200/20 transition-all duration-500 rounded-[2.5rem] hover:-translate-y-2">
                             {/* Decorative element */}
                             <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-110" />

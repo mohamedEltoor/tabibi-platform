@@ -38,8 +38,10 @@ export function BookingCalendar({ schedule, bookedSlots = [], onBookSlot }: Book
                 days.push(date);
             }
         }
-        setAvailableDays(days);
-        if (days.length > 0) setSelectedDate(days[0]);
+        Promise.resolve().then(() => {
+            setAvailableDays(days);
+            if (days.length > 0) setSelectedDate(days[0]);
+        });
     }, [schedule]);
 
     const handleNext = () => {

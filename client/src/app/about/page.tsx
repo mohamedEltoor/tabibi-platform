@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Heart, Shield, Clock, Users, Award, Stethoscope, CheckCircle2 } from "lucide-react";
+import { Heart, Shield, Award, Stethoscope, CheckCircle2 } from "lucide-react";
 
 export default function AboutPage() {
     return (

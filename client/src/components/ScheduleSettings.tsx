@@ -10,13 +10,15 @@ interface DailySchedule {
     enabled: boolean;
 }
 
+interface Schedule {
+    dailySchedules: DailySchedule[];
+    slotDuration: number;
+    waitingTime: number;
+}
+
 interface ScheduleSettingsProps {
-    schedule: {
-        dailySchedules: DailySchedule[];
-        slotDuration: number;
-        waitingTime: number;
-    };
-    onChange: (newSchedule: any) => void;
+    schedule: Schedule;
+    onChange: (newSchedule: Schedule) => void;
 }
 
 const WEEK_DAYS = [
@@ -36,7 +38,7 @@ export function ScheduleSettings({ schedule, onChange }: ScheduleSettingsProps) 
 
     const handleDayToggle = (dayId: string, checked: boolean) => {
         const existingDayIndex = dailySchedules.findIndex(d => d.day === dayId);
-        let newDailySchedules = [...dailySchedules];
+        const newDailySchedules = [...dailySchedules];
 
         if (existingDayIndex >= 0) {
             newDailySchedules[existingDayIndex] = {

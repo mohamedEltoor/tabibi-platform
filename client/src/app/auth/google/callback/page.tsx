@@ -2,10 +2,10 @@
 export const dynamic = 'force-dynamic';
 
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function GoogleCallbackPage() {
+function GoogleCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
@@ -18,7 +18,7 @@ export default function GoogleCallbackPage() {
         const hasAppointments = searchParams.get('hasAppointments') === 'true';
 
         if (error) {
-            setStatus('error');
+            Promise.resolve().then(() => setStatus('error'));
             setTimeout(() => {
                 router.push('/login?error=google_auth_failed');
             }, 2000);
@@ -26,34 +26,23 @@ export default function GoogleCallbackPage() {
         }
 
         if (token && role) {
-            // Store authentication data
             localStorage.setItem('token', token);
-            localStorage.setItem('role', role); // key must be 'role' to match signup/login pages
-            console.log('Google Auth Success - Role:', role);
+            localStorage.setItem('role', role);
 
-            // Trigger auth update for navbar and other components
             window.dispatchEvent(new Event("auth-change"));
+            Promise.resolve().then(() => setStatus('success'));
 
-            setStatus('success');
-
-            // Smart redirect logic
             setTimeout(() => {
                 if (role === 'doctor') {
-                    // Doctors always go to doctor dashboard
                     router.push('/dashboard/doctor');
                 } else if (role === 'admin') {
-                    // Admin always goes to admin dashboard
                     router.push('/dashboard/admin');
                 } else if (role === 'patient') {
-                    // Smart redirect for patients
                     if (isNewUser) {
-                        // New users -> search for doctors
                         router.push('/search');
                     } else if (hasAppointments) {
-                        // Returning users with appointments -> dashboard
                         router.push('/dashboard/patient');
                     } else {
-                        // Returning users without appointments -> home
                         router.push('/');
                     }
                 } else {
@@ -61,7 +50,7 @@ export default function GoogleCallbackPage() {
                 }
             }, 1500);
         } else {
-            setStatus('error');
+            Promise.resolve().then(() => setStatus('error'));
             setTimeout(() => {
                 router.push('/login');
             }, 2000);
@@ -104,5 +93,17 @@ export default function GoogleCallbackPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function GoogleCallbackPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-100">
+                <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600"></div>
+            </div>
+        }>
+            <GoogleCallbackContent />
+        </Suspense>
     );
 }

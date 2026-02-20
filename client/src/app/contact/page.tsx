@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageCircle, Phone, Clock, ArrowLeft, ShieldCheck, HeadphonesIcon } from "lucide-react";
+import { MessageCircle, Clock, ArrowLeft, ShieldCheck, HeadphonesIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function ContactPage() {

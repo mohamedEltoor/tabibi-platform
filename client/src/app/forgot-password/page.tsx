@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -14,7 +14,7 @@ export default function ForgotPasswordPage() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     if (success) {
         return (

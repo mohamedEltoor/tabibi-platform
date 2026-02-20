@@ -17,15 +17,15 @@ export default function Navbar() {
     const pathname = usePathname();
 
     useEffect(() => {
-        setMounted(true);
+        Promise.resolve().then(() => setMounted(true));
         const checkAuth = () => {
             const token = localStorage.getItem("token");
             const role = localStorage.getItem("role");
-            setIsLoggedIn(!!token);
-            setUserRole(role);
+            Promise.resolve().then(() => setIsLoggedIn(!!token));
+            Promise.resolve().then(() => setUserRole(role));
         };
 
-        checkAuth();
+        Promise.resolve().then(() => checkAuth());
 
         // Listen for storage changes (for tab sync)
         window.addEventListener("storage", checkAuth);

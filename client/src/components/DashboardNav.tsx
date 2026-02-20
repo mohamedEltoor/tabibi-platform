@@ -12,7 +12,7 @@ export default function DashboardNav() {
 
     useEffect(() => {
         const role = localStorage.getItem("role");
-        setUserRole(role);
+        Promise.resolve().then(() => setUserRole(role));
     }, []);
 
     const handleLogout = () => {

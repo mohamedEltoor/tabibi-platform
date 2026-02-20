@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -11,6 +11,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+
+interface AuthResponseData {
+    token: string;
+    role: string;
+    isEmailVerified: boolean;
+    isNewUser?: boolean;
+    hasAppointments?: boolean;
+    msg?: string;
+    msgEn?: string;
+    useGoogleAuth?: boolean;
+}
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -35,7 +46,7 @@ export default function LoginPage() {
         }
     }, [searchParams]);
 
-    const handleRedirect = (data: any) => {
+    const handleRedirect = useCallback((data: AuthResponseData) => {
         const role = data.role;
         const isNewUser = data.isNewUser;
         const hasAppointments = data.hasAppointments;
@@ -55,29 +66,30 @@ export default function LoginPage() {
         } else {
             router.push("/");
         }
-    };
+    }, [router]);
 
-    const handlePasswordLogin = async (e: React.FormEvent) => {
+    const handlePasswordLogin = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
 
         try {
-            const res = await api.post("/auth/login", { email, password });
-            localStorage.setItem("token", res.data.token);
+            const res = await api.post<AuthResponseData>("/auth/login", { email, password });
+            const data = res.data;
+            localStorage.setItem("token", data.token);
 
-            if (res.data.isEmailVerified !== undefined) {
-                localStorage.setItem("isEmailVerified", res.data.isEmailVerified.toString());
+            if (data.isEmailVerified !== undefined) {
+                localStorage.setItem("isEmailVerified", data.isEmailVerified.toString());
             }
 
-            if (res.data.role) {
-                localStorage.setItem("role", res.data.role);
+            if (data.role) {
+                localStorage.setItem("role", data.role);
             }
 
             // Trigger navbar update
             window.dispatchEvent(new Event("auth-change"));
 
-            handleRedirect(res.data);
+            handleRedirect(data);
         } catch (err: any) {
             const errorMsg = err.response?.data?.msg || "حدث خطأ ما";
             const isEmailVerified = err.response?.data?.isEmailVerified;
@@ -100,15 +112,15 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [email, password, handleRedirect, router]);
 
-    const handleRequestOTP = async (e: React.FormEvent) => {
+    const handleRequestOTP = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
 
         try {
-            const res = await api.post("/auth/request-otp", { email: otpEmail });
+            const res = await api.post<{ msg: string }>("/auth/request-otp", { email: otpEmail });
             toast.success(res.data.msg || "تم إرسال كود التحقق إلى بريدك الإلكتروني");
             setOtpSent(true);
         } catch (err: any) {
@@ -118,30 +130,31 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [otpEmail]);
 
-    const handleVerifyOTP = async (e: React.FormEvent) => {
+    const handleVerifyOTP = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
 
         try {
-            const res = await api.post("/auth/verify-otp", { email: otpEmail, otp });
-            localStorage.setItem("token", res.data.token);
+            const res = await api.post<AuthResponseData>("/auth/verify-otp", { email: otpEmail, otp });
+            const data = res.data;
+            localStorage.setItem("token", data.token);
 
-            if (res.data.isEmailVerified !== undefined) {
-                localStorage.setItem("isEmailVerified", res.data.isEmailVerified.toString());
+            if (data.isEmailVerified !== undefined) {
+                localStorage.setItem("isEmailVerified", data.isEmailVerified.toString());
             }
 
-            if (res.data.role) {
-                localStorage.setItem("role", res.data.role);
+            if (data.role) {
+                localStorage.setItem("role", data.role);
             }
 
             // Trigger navbar update
             window.dispatchEvent(new Event("auth-change"));
 
             toast.success("تم تسجيل الدخول بنجاح!");
-            handleRedirect(res.data);
+            handleRedirect(data);
         } catch (err: any) {
             const errorMsg = err.response?.data?.msg || "حدث خطأ ما";
             setError(errorMsg);
@@ -149,7 +162,7 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [otpEmail, otp, handleRedirect]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">

@@ -1,54 +1,36 @@
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-const { createClient } = require('@supabase/supabase-js');
-const path = require('path');
 
-// Configure Supabase
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-let storage;
-
-// For Supabase, we'll use memoryStorage for cloud uploads 
-// and then upload in the controller to get the public URL.
-if (process.env.SUPABASE_URL) {
-    storage = multer.memoryStorage();
-} else {
-    // Development: Use Local Storage
-    const fs = require('fs');
-    const uploadDir = 'uploads/emr';
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    storage = multer.diskStorage({
-        destination: function (req, file, cb) {
-            cb(null, uploadDir);
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'tabibi',
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'pdf'],
+        resource_type: 'auto', // Important for PDF support
+        public_id: (req, file) => {
+            try {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const cleanName = file.originalname ? file.originalname.split('.')[0].replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'file';
+                return `${cleanName}-${uniqueSuffix}`;
+            } catch (err) {
+                console.error('Error in public_id generator:', err);
+                return `file-${Date.now()}`;
+            }
         },
-        filename: function (req, file, cb) {
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-        }
-    });
-}
-
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|pdf|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (extname && mimetype) {
-        return cb(null, true);
-    } else {
-        cb(new Error('Only images (jpg, png, webp) and PDFs are allowed'));
-    }
-};
+    },
+});
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-    fileFilter: fileFilter
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-module.exports = { upload, supabase };
+module.exports = { upload, cloudinary };
