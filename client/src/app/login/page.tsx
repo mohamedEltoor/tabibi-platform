@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -23,7 +23,7 @@ interface AuthResponseData {
     useGoogleAuth?: boolean;
 }
 
-export default function LoginPage() {
+function LoginContent() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [otp, setOtp] = useState("");
@@ -301,5 +301,13 @@ export default function LoginPage() {
                 </CardFooter>
             </Card>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">جاري التحميل...</div>}>
+            <LoginContent />
+        </Suspense>
     );
 }

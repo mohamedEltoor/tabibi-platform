@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,6 @@ import api from "@/lib/axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getGovernorates, getCities } from "@/lib/egyptData";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
-import { useCallback } from "react";
 
 interface RegisterPayload {
     name: string;
@@ -26,7 +25,7 @@ interface RegisterPayload {
     subspecialty?: string;
 }
 
-export default function SignupPage() {
+function SignupContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
@@ -42,6 +41,7 @@ export default function SignupPage() {
             setRole(roleParam);
         }
     }, [searchParams]);
+
     const [governorate, setGovernorate] = useState("");
     const [city, setCity] = useState("");
     const [address, setAddress] = useState("");
@@ -50,7 +50,6 @@ export default function SignupPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
-
 
     const governorates = getGovernorates();
     const cities = governorate ? getCities(governorate) : [];
@@ -310,5 +309,13 @@ export default function SignupPage() {
                 </CardFooter>
             </Card>
         </div>
+    );
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">جاري التحميل...</div>}>
+            <SignupContent />
+        </Suspense>
     );
 }
