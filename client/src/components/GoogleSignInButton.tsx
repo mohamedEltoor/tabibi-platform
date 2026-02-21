@@ -17,8 +17,8 @@ export default function GoogleSignInButton({
         // Redirect to backend Google OAuth endpoint
         const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
         const authUrl = role
-            ? `${backendUrl}/api/auth/google?role=${role}`
-            : `${backendUrl}/api/auth/google`;
+            ? `${backendUrl}/auth/google?role=${role}`
+            : `${backendUrl}/auth/google`;
 
         window.location.href = authUrl;
     };
