@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
             allow: '/',
             disallow: ['/dashboard/', '/admin/'],
         },
-        sitemap: 'http://localhost:3000/sitemap.xml', // Change to production URL when deployed
+        sitemap: 'https://tabibi-app.duckdns.org/sitemap.xml',
     };
 }

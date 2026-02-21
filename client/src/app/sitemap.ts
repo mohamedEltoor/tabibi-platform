@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-const EXTERNAL_URL = 'http://localhost:3000'; // Change to production URL when deployed
+const EXTERNAL_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://tabibi-app.duckdns.org';
 
 async function getAllDoctors() {
     try {
