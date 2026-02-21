@@ -427,9 +427,9 @@ export default function DoctorDashboard() {
                                         ? "نود إعلامك بأن إدارة المنصة قد قامت بإيقاف حسابك مؤقتاً. يرجى التواصل معنا للاستفسار أو إعادة التفعيل."
                                         : (
                                             <>
-                                                {doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0 ? (
+                                                {(doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) || doctorProfile.isManuallyDeactivated ? (
                                                     <>
-                                                        نعتذر، ولكن حسابك متوقف لانتهاء صلاحية الاشتراك. يرجى تجديد الاشتراك السنوي/الشهري لتتمكن من استخدام المنصة والظهور للمرضى.
+                                                        نعتذر، ولكن حسابك متوقف لانتهاء صلاحية الاشتراك أو لقرار إداري. يرجى سداد الاشتراك الشهري لتتمكن من استخدام المنصة والظهور للمرضى.
                                                         <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/10 text-right">
                                                             <div className="flex justify-between items-center text-white font-black">
                                                                 <span>قيمة الاشتراك:</span>
@@ -467,13 +467,13 @@ export default function DoctorDashboard() {
                                             ) : (
                                                 <Button
                                                     onClick={() => {
-                                                        const type = (doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) ? 'renewal' : 'commission';
+                                                        const type = ((doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) || doctorProfile.isManuallyDeactivated) ? 'renewal' : 'commission';
                                                         setFinModalType(type);
                                                         setIsRenewalOpen(true);
                                                     }}
                                                     className="w-full h-14 rounded-2xl text-lg font-black shadow-lg bg-red-600 hover:bg-red-700 shadow-red-900/20"
                                                 >
-                                                    {(doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) ? "تجديد الاشتراك الآن" : "سداد العمولات والتفعيل"}
+                                                    {((doctorProfile.debtBreakdown?.subscription && doctorProfile.debtBreakdown.subscription > 0) || doctorProfile.isManuallyDeactivated) ? "تجديد الاشتراك الآن" : "سداد العمولات والتفعيل"}
                                                 </Button>
                                             )}
                                         </>

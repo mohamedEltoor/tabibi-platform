@@ -221,7 +221,7 @@ const calculateDebt = async (doctor) => {
     const isSubExpired = !doctor.subscriptionExpiresAt || new Date(doctor.subscriptionExpiresAt) < now;
     const isTrialExpired = doctor.trialExpiresAt && new Date(doctor.trialExpiresAt) < now;
 
-    if (isSubExpired && isTrialExpired) {
+    if ((isSubExpired && isTrialExpired) || doctor.isManuallyDeactivated) {
         subscriptionDebt = 150; // Hardcoded per platform rule
     }
 
