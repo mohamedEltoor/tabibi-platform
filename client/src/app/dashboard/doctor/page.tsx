@@ -62,6 +62,7 @@ interface DoctorProfile {
     missingFields?: string[];
     subscriptionExpiresAt?: string;
     trialExpiresAt?: string;
+    isManuallyDeactivated?: boolean;
     renewalRequest?: { status: string };
     commissionPaymentRequest?: { status: string };
 }
