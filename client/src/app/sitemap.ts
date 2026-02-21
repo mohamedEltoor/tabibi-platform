@@ -5,7 +5,7 @@ const EXTERNAL_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://tabibi-app
 
 async function getAllDoctors() {
     try {
-        const res = await fetch(`${API_BASE_URL}/doctors/all`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE_URL}/doctors`, { cache: 'no-store' });
         if (!res.ok) return [];
         return res.json();
     } catch (err) {
